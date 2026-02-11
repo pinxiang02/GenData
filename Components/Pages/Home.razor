@@ -1,0 +1,46 @@
+﻿@page "/"
+@using Microsoft.FluentUI.AspNetCore.Components
+
+@rendermode InteractiveServer
+
+<PageTitle>Dashboard</PageTitle>
+
+<FluentStack Orientation="Orientation.Vertical" VerticalGap="20">
+
+    <div style="margin-bottom: 10px;">
+        <h1 style="margin-bottom: 5px;">Dashboard</h1>
+        <span style="color: #aaaaaa;">Welcome to your data generation toolkit.</span>
+    </div>
+
+    <FluentCard>
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="10">
+            <h3>Quick Start</h3>
+            <p>Ready to generate SQL or CSV data? Head over to the generator tool to define your schema.</p>
+
+            <FluentButton Appearance="Appearance.Accent" OnClick="@(() => Nav.NavigateTo("/generators"))" IconStart="@(new Icons.Regular.Size20.Flash())">
+                Open Generator
+            </FluentButton>
+        </FluentStack>
+    </FluentCard>
+
+    <FluentGrid Spacing="3">
+        <FluentGridItem xs="12" sm="6" md="4">
+            <FluentCard>
+                <FluentIcon Value="@(new Icons.Regular.Size24.Cube())" Color="Color.Accent" />
+                <h4>Flexible Schemas</h4>
+                <p style="color: #999; font-size: 0.9em;">Support for Strings, Integers, Dates, and Booleans.</p>
+            </FluentCard>
+        </FluentGridItem>
+
+        <FluentGridItem xs="12" sm="6" md="4">
+            <FluentCard>
+                <FluentIcon Value="@(new Icons.Regular.Size24.ArrowDownload())" Color="Color.Accent" />
+                <h4>Export (Coming Soon)</h4>
+                <p style="color: #999; font-size: 0.9em;">Future support for CSV and JSON downloads.</p>
+            </FluentCard>
+        </FluentGridItem>
+    </FluentGrid>
+
+</FluentStack>
+
+@inject NavigationManager Nav

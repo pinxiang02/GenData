@@ -1,0 +1,150 @@
+﻿@page "/api-configs"
+@using DataGen_v1.Data
+@using DataGen_v1.Models
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.FluentUI.AspNetCore.Components
+@inject IDbContextFactory<AppDbContext> DbFactory
+
+@rendermode InteractiveServer
+
+<PageTitle>API Configurations</PageTitle>
+
+<div style="padding: 20px; width: 100%;">
+    <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center">
+        <h2>API Integration Settings</h2>
+        <FluentSpacer />
+        <FluentButton Appearance="Appearance.Accent" OnClick="OpenCreateDialog" IconStart="@(new Icons.Regular.Size20.Add())">
+            New API Profile
+        </FluentButton>
+    </FluentStack>
+
+    <FluentGrid Spacing="3">
+        @foreach (var api in ApiList)
+        {
+            <FluentGridItem xs="12" sm="12" md="6" lg="4">
+
+                <FluentCard Style="background-color: #252525; height: 100%; min-width: 320px; padding: 15px;">
+
+                    <FluentStack Orientation="Orientation.Vertical" VerticalGap="10">
+
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3 style="margin: 0; color: #5db0f5; font-size: 1.1em;">@api.ProfileName</h3>
+                            <FluentBadge Appearance="Appearance.Neutral">@api.Method</FluentBadge>
+                        </div>
+
+                        <div style="font-family: monospace; color: #aaa; font-size: 0.9em;
+                                        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+                             title="@api.TargetUrl">
+                            @api.TargetUrl
+                        </div>
+
+                        <FluentDivider Style="opacity: 0.3;" />
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
+                            <div style="font-size: 0.85em; color: #888;">
+                                <span style="color: #666;">Auth:</span> @(string.IsNullOrEmpty(api.HeaderName) ? "None" : "Set")
+                            </div>
+
+                            <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="5">
+                                <FluentButton Appearance="Appearance.Stealth" IconStart="@(new Icons.Regular.Size16.Edit())" OnClick="@(() => EditApi(api))" />
+                                <FluentButton Appearance="Appearance.Stealth" Color="Color.Error" IconStart="@(new Icons.Regular.Size16.Delete())" OnClick="@(() => DeleteApi(api))" />
+                            </FluentStack>
+                        </div>
+
+                    </FluentStack>
+                </FluentCard>
+            </FluentGridItem>
+        }
+    </FluentGrid>
+</div>
+
+@if (ShowDialog)
+{
+    <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 2000;">
+        <FluentCard Style="width: 500px; height: auto; padding: 25px; border: 1px solid #444; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+            <h3 style="margin-top: 0; margin-bottom: 20px;">
+                @(CurrentApi.Id == 0 ? "New API Profile" : "Edit API Profile")
+            </h3>
+
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="15">
+
+                <FluentTextField @bind-Value="CurrentApi.ProfileName" Label="Profile Name" Placeholder="e.g. Production Endpoint" Style="width: 100%;" />
+
+                <FluentSelect @bind-Value="CurrentApi.Method" Label="HTTP Method" TOption="string" Style="width: 100%;">
+                    <FluentOption Value="POST">POST</FluentOption>
+                    <FluentOption Value="PUT">PUT</FluentOption>
+                    <FluentOption Value="PATCH">PATCH</FluentOption>
+                </FluentSelect>
+
+                <FluentTextField @bind-Value="CurrentApi.TargetUrl" Label="Target URL" Placeholder="https://api.example.com/v1/ingest" Style="width: 100%;" />
+
+                <FluentDivider Style="margin: 10px 0;" />
+                <label style="font-weight: 600; color: #ccc;">Authentication (Optional)</label>
+
+                <FluentTextField @bind-Value="CurrentApi.HeaderName" Label="Header Name" Placeholder="e.g. Authorization" Style="width: 100%;" />
+
+                <FluentTextField @bind-Value="CurrentApi.HeaderValue" Label="Header Value" Placeholder="e.g. Bearer eyJhbGciOiJIUz..." Style="width: 100%;" />
+
+                <FluentStack Orientation="Orientation.Horizontal" HorizontalAlignment="HorizontalAlignment.End" Style="margin-top: 15px;">
+                    <FluentButton OnClick="@(() => ShowDialog = false)">Cancel</FluentButton>
+                    <FluentButton Appearance="Appearance.Accent" OnClick="SaveApi">Save Configuration</FluentButton>
+                </FluentStack>
+
+            </FluentStack>
+        </FluentCard>
+    </div>
+}
+@code {
+    private List<ApiConfig> ApiList = new();
+    private ApiConfig CurrentApi = new();
+    private bool ShowDialog = false;
+
+    protected override async Task OnInitializedAsync() => await LoadApis();
+
+    private async Task LoadApis()
+    {
+        using var context = DbFactory.CreateDbContext();
+        ApiList = await context.ApiConfigs.AsNoTracking().ToListAsync();
+    }
+
+    private void OpenCreateDialog()
+    {
+        CurrentApi = new ApiConfig { Method = "POST" };
+        ShowDialog = true;
+    }
+
+    private void EditApi(ApiConfig api)
+    {
+        CurrentApi = new ApiConfig
+        {
+            Id = api.Id,
+            ProfileName = api.ProfileName,
+            TargetUrl = api.TargetUrl,
+            Method = api.Method,
+            HeaderName = api.HeaderName,
+            HeaderValue = api.HeaderValue
+        };
+        ShowDialog = true;
+    }
+
+    private async Task SaveApi()
+    {
+        if (string.IsNullOrWhiteSpace(CurrentApi.ProfileName) || string.IsNullOrWhiteSpace(CurrentApi.TargetUrl)) return;
+
+        using var context = DbFactory.CreateDbContext();
+        if (CurrentApi.Id == 0) context.ApiConfigs.Add(CurrentApi);
+        else context.ApiConfigs.Update(CurrentApi);
+
+        await context.SaveChangesAsync();
+        ShowDialog = false;
+        await LoadApis();
+    }
+
+    private async Task DeleteApi(ApiConfig api)
+    {
+        using var context = DbFactory.CreateDbContext();
+        context.ApiConfigs.Remove(api);
+        await context.SaveChangesAsync();
+        await LoadApis();
+    }
+}

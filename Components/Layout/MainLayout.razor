@@ -1,0 +1,83 @@
+﻿@inherits LayoutComponentBase
+@using Microsoft.FluentUI.AspNetCore.Components
+
+<FluentDesignTheme Mode="DesignThemeModes.Dark" />
+<FluentDialogProvider />
+<FluentToastProvider />
+
+<div class="app-layout">
+
+    <header class="app-header">
+        <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center">
+            <FluentIcon Value="@(new Icons.Regular.Size24.Database())" Color="Color.Accent" />
+            <span class="brand-name">DataGen</span>
+        </FluentStack>
+    </header>
+
+    <aside class="app-sidebar">
+        <FluentNavMenu Width="250" Collapsible="false">
+            <FluentNavLink Href="/" Match="NavLinkMatch.All" Icon="@(new Icons.Regular.Size20.Home())">Overview</FluentNavLink>
+            <FluentNavLink Href="/generators" Icon="@(new Icons.Regular.Size20.Flash())">Generator Tool</FluentNavLink>
+            <FluentNavLink Href="/api-configs" Icon="@(new Icons.Regular.Size20.Settings())">API Settings</FluentNavLink>
+            <FluentNavLink Href="/db-configs" Icon="@(new Icons.Regular.Size20.Database())">DB Connections</FluentNavLink>
+        </FluentNavMenu>
+    </aside>
+
+    <main class="app-content">
+        <div class="content-scrollable">
+            @Body
+        </div>
+    </main>
+
+</div>
+
+<style>
+    /* CSS GRID LAYOUT ENGINE */
+    .app-layout {
+        display: grid;
+        grid-template-columns: 250px 1fr;
+        grid-template-rows: 48px 1fr;
+        grid-template-areas:
+            "header header"
+            "sidebar content";
+        height: 100vh;
+        width: 100vw;
+    }
+
+    .app-header {
+        grid-area: header;
+        background-color: #1e1e1e;
+        border-bottom: 1px solid #333;
+        padding: 0 16px;
+        display: flex;
+        align-items: center;
+    }
+
+    .brand-name {
+        margin-left: 12px;
+        font-weight: 600;
+        font-size: 16px;
+        letter-spacing: 0.5px;
+    }
+
+    .app-sidebar {
+        grid-area: sidebar;
+        background-color: #181818;
+        border-right: 1px solid #333;
+    }
+
+    .app-content {
+        grid-area: content;
+        background-color: #121212;
+        position: relative;
+        overflow: hidden; /* Hide scroll on parent, allow child to scroll */
+    }
+
+    .content-scrollable {
+        height: 100%; /* Fill the main content area */
+        width: 100%;
+        overflow-y: auto; /* Enable vertical scrolling for the whole page */
+        display: flex; /* This is key to letting children grow/shrink correctly */
+        flex-direction: column;
+    }
+</style>

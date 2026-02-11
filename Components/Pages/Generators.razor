@@ -1,0 +1,129 @@
+﻿@page "/generators"
+@using DataGen_v1.Data
+@using DataGen_v1.Models
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.FluentUI.AspNetCore.Components
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject NavigationManager Nav
+
+@rendermode InteractiveServer
+
+<PageTitle>My Generators</PageTitle>
+
+<div style="width: 100%; padding: 20px;">
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="20">
+
+        <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center">
+            <h2 style="margin: 0;">My Generators</h2>
+            <FluentSpacer />
+            <FluentButton Appearance="Appearance.Accent" OnClick="@(() => ShowCreate = true)" IconStart="@(new Icons.Regular.Size20.Add())">
+                New Project
+            </FluentButton>
+        </FluentStack>
+
+        <FluentGrid Spacing="3" AdaptiveRendering="true" Style="width: 100%;">
+            @foreach (var gen in GeneratorList)
+            {
+                <FluentGridItem xs="12" sm="6" md="4" lg="3">
+                    <FluentCard Style="height: 200px; display: flex; flex-direction: column; background-color: #252525;">
+                        <div style="flex-grow: 1; overflow: hidden;">
+                            <h3 style="margin: 0 0 10px 0; color: var(--accent-fill-rest); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                @gen.Name
+                            </h3>
+                            <p style="color: #bbb; font-size: 0.9em; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
+                                @gen.Description
+                            </p>
+                        </div>
+
+                        <FluentStack Orientation="Orientation.Horizontal" HorizontalAlignment="HorizontalAlignment.End" Style="margin-top: 10px;">
+                            <FluentButton Appearance="Appearance.Stealth" OnClick="@(() => DeleteGen(gen))" Color="error">Delete</FluentButton>
+                            <FluentButton Appearance="Appearance.Accent" OnClick="@(() => OpenGen(gen.Id))">Open</FluentButton>
+                        </FluentStack>
+                    </FluentCard>
+                </FluentGridItem>
+            }
+        </FluentGrid>
+
+        @if (GeneratorList.Count == 0)
+        {
+            <FluentCard>
+                <div style="text-align: center; padding: 20px;">
+                    <p>No generators found. Create one to get started!</p>
+                </div>
+            </FluentCard>
+        }
+    </FluentStack>
+</div>
+
+@if (ShowCreate)
+{
+    <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 1000;">
+        <FluentCard Style="width: 400px; height: auto; padding: 20px;">
+            <h3 style="margin-top: 0;">Create Generator</h3>
+
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="15">
+                <FluentTextField @bind-Value="NewGen.Name" Label="Project Name" Style="width: 100%;" Required />
+
+                <FluentTextArea @bind-Value="NewGen.Description"
+                                Label="Description"
+                                Style="width: 100%;"
+                                Rows="4"
+                                Resize="TextAreaResize.Vertical"
+                                Placeholder="Enter project details..." />
+
+                <FluentStack Orientation="Orientation.Horizontal" HorizontalAlignment="HorizontalAlignment.End" Style="margin-top: 10px;">
+                    <FluentButton OnClick="@(() => ShowCreate = false)">Cancel</FluentButton>
+                    <FluentButton Appearance="Appearance.Accent" OnClick="CreateGen">Create</FluentButton>
+                </FluentStack>
+            </FluentStack>
+        </FluentCard>
+    </div>
+}
+
+@code {
+    private List<Generator> GeneratorList = new();
+    private Generator NewGen = new();
+    private bool ShowCreate = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadGenerators();
+        using var context = DbFactory.CreateDbContext();
+    }
+
+    private async Task LoadGenerators()
+    {
+        using var context = DbFactory.CreateDbContext();
+        GeneratorList = await context.Generators.AsNoTracking().ToListAsync();
+    }
+
+    private async Task CreateGen()
+    {
+        if (string.IsNullOrWhiteSpace(NewGen.Name)) return;
+
+        using var context = DbFactory.CreateDbContext();
+        context.Generators.Add(NewGen);
+        await context.SaveChangesAsync();
+
+        NewGen = new Generator();
+        ShowCreate = false;
+        await LoadGenerators();
+    }
+
+    private async Task DeleteGen(Generator gen)
+    {
+        using var context = DbFactory.CreateDbContext();
+        // EF Core will cascade delete the nodes if configured, but let's be safe
+        var nodesToDelete = context.NodeConfigs.Where(n => n.GeneratorId == gen.Id);
+        context.NodeConfigs.RemoveRange(nodesToDelete);
+
+        context.Generators.Remove(gen);
+        await context.SaveChangesAsync();
+        await LoadGenerators();
+    }
+
+    private void OpenGen(int id)
+    {
+        Nav.NavigateTo($"/generator/{id}");
+    }
+}

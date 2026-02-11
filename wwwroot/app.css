@@ -1,0 +1,53 @@
+/* 1. GLOBAL RESET */
+:root {
+    --body-bg: #121212; /* Very dark grey (almost black) */
+    --card-bg: #1e1e1e; /* Standard dark card color */
+    --border-color: #333333; /* Subtle borders */
+    --text-primary: #ffffff;
+    --text-secondary: #aaaaaa;
+}
+
+html, body {
+    background-color: var(--body-bg) !important;
+    color: var(--text-primary) !important;
+    font-family: 'Segoe UI', sans-serif;
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    overflow: hidden; /* Important: The layout container handles scrolling, not the body */
+}
+
+/* 2. FORCE DARK CARDS */
+fluent-card, .fluent-card {
+    background-color: var(--card-bg) !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3) !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-primary) !important;
+    border-radius: 8px !important;
+}
+
+/* 3. FIX THE WHITE MESSAGE BAR GLARE */
+fluent-message-bar, .fluent-message-bar {
+    background-color: #2d2d2d !important; /* Dark grey instead of white */
+    color: #ffffff !important;
+    border: 1px solid #444 !important;
+}
+
+/* 4. DATA GRID STYLING */
+fluent-data-grid, .fluent-data-grid {
+    background-color: var(--card-bg) !important;
+}
+
+/* Header Cells */
+.fluent-data-grid-header {
+    background-color: #252525 !important;
+    border-bottom: 2px solid #444 !important;
+}
+
+/* Fix scrolling inside the layout */
+.content-scrollable {
+    height: 100%;
+    overflow-y: auto;
+    padding: 2rem;
+    box-sizing: border-box;
+}

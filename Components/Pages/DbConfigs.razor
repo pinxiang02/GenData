@@ -1,0 +1,141 @@
+﻿@page "/db-configs"
+@using DataGen_v1.Data
+@using DataGen_v1.Models
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.FluentUI.AspNetCore.Components
+@inject IDbContextFactory<AppDbContext> DbFactory
+
+@rendermode InteractiveServer
+
+<PageTitle>Database Connections</PageTitle>
+
+<div style="padding: 20px;">
+    <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center">
+        <h2>Database Connections</h2>
+        <FluentSpacer />
+        <FluentButton Appearance="Appearance.Accent" OnClick="OpenCreateDialog" IconStart="@(new Icons.Regular.Size20.Add())">
+            New Connection
+        </FluentButton>
+    </FluentStack>
+
+    <FluentGrid Spacing="3" Style="margin-top: 20px;">
+        @foreach (var db in DbList)
+        {
+            <FluentGridItem xs="12" sm="12" md="6" lg="4">
+                <FluentCard Style="background-color: #252525; height: 100%; min-width: 300px;">
+                    <FluentStack Orientation="Orientation.Vertical">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3 style="margin: 0; color: #5db0f5;">@db.Name</h3>
+                            <FluentBadge Appearance="Appearance.Neutral">@db.ProviderType</FluentBadge>
+                        </div>
+                        <code style="color: #aaa; font-size: 0.85em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="@db.ConnectionString">
+                            @db.ConnectionString
+                        </code>
+                        <FluentDivider />
+
+                        <FluentStack HorizontalAlignment="HorizontalAlignment.End">
+                            <FluentButton Appearance="Appearance.Stealth" IconStart="@(new Icons.Regular.Size16.Edit())" OnClick="@(() => EditDb(db))">Edit</FluentButton>
+                            <FluentButton Appearance="Appearance.Stealth" IconStart="@(new Icons.Regular.Size16.Delete())" OnClick="@(() => DeleteDb(db))" Color="Color.Error">Delete</FluentButton>
+                        </FluentStack>
+                    </FluentStack>
+                </FluentCard>
+            </FluentGridItem>
+        }
+    </FluentGrid>
+</div>
+
+@if (ShowDialog)
+{
+    <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 2000; padding: 20px;">
+
+        <FluentCard Style="width: 100%; max-width: 450px; height: auto; padding: 20px; border: 1px solid #444;">
+
+            <h3 style="margin-top: 0; margin-bottom: 15px;">
+                @(NewDb.Id == 0 ? "New Database Connection" : "Edit Database Connection")
+            </h3>
+
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="10">
+
+                <FluentTextField @bind-Value="NewDb.Name" Label="Connection Name" Placeholder="e.g. Local SQL Express" Style="width: 100%;" />
+
+                <FluentSelect @bind-Value="NewDb.ProviderType" Label="Provider" TOption="string" Style="width: 100%;">
+                    <FluentOption Value="Postgres">PostgreSQL</FluentOption>
+                </FluentSelect>
+
+                <FluentTextArea @bind-Value="NewDb.ConnectionString"
+                                Label="Connection String"
+                                Rows="3"
+                                Placeholder="Host=localhost;Database=myData;..."
+                                Style="width: 100%;" />
+
+                <FluentStack HorizontalAlignment="HorizontalAlignment.End" Style="margin-top: 10px;">
+                    <FluentButton OnClick="@(() => ShowDialog = false)">Cancel</FluentButton>
+                    <FluentButton Appearance="Appearance.Accent" OnClick="SaveDb">Save Connection</FluentButton>
+                </FluentStack>
+
+            </FluentStack>
+        </FluentCard>
+    </div>
+}
+
+@code {
+    private List<DbConnectionConfig> DbList = new();
+    private DbConnectionConfig NewDb = new();
+    private bool ShowDialog = false;
+
+    protected override async Task OnInitializedAsync() => await LoadDbs();
+
+    private async Task LoadDbs()
+    {
+        using var context = DbFactory.CreateDbContext();
+        DbList = await context.DbConfigs.AsNoTracking().ToListAsync();
+    }
+
+    private void OpenCreateDialog()
+    {
+        NewDb = new DbConnectionConfig();
+        ShowDialog = true;
+    }
+
+    // NEW: Load existing data into the edit form
+    private void EditDb(DbConnectionConfig db)
+    {
+        NewDb = new DbConnectionConfig
+        {
+            Id = db.Id,
+            Name = db.Name,
+            ProviderType = db.ProviderType,
+            ConnectionString = db.ConnectionString
+        };
+        ShowDialog = true;
+    }
+
+    private async Task SaveDb()
+    {
+        if (string.IsNullOrWhiteSpace(NewDb.Name) || string.IsNullOrWhiteSpace(NewDb.ConnectionString)) return;
+
+        using var context = DbFactory.CreateDbContext();
+
+        // Logic to handle Insert vs Update
+        if (NewDb.Id == 0)
+        {
+            context.DbConfigs.Add(NewDb);
+        }
+        else
+        {
+            context.DbConfigs.Update(NewDb);
+        }
+
+        await context.SaveChangesAsync();
+        ShowDialog = false;
+        await LoadDbs();
+    }
+
+    private async Task DeleteDb(DbConnectionConfig db)
+    {
+        using var context = DbFactory.CreateDbContext();
+        context.DbConfigs.Remove(db);
+        await context.SaveChangesAsync();
+        await LoadDbs();
+    }
+}
