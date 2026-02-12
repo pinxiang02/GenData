@@ -8,6 +8,8 @@
 @inject DbInsertService DbInserter
 @inject GeneratorService GenService
 @inject HttpSenderService HttpSender
+@inject GenerationManager GenManager
+@inject SystemLogService LogService
 @inject NavigationManager Nav
 @inject IToastService ToastService
 @implements IDisposable
@@ -23,88 +25,49 @@
 
     <div class="panel-left">
         <FluentStack Orientation="Orientation.Vertical" VerticalGap="20">
-
             <FluentCard>
-                <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" Style="margin-bottom: 10px;">
-                    <h3 style="margin: 0;">Target Configuration</h3>
-                    <FluentSpacer />
-                    <FluentSwitch @bind-Value="IsTransmissionEnabled" Label="Transmit Data" />
-                </FluentStack>
-
+                <div style="margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px;">
+                    <h3 style="margin: 0 0 10px 0;">Configuration</h3>
+                    <FluentNumberField @bind-Value="IntervalMs" Label="Interval (ms)" Min="100" Step="100" Style="width: 100%;" />
+                </div>
                 <FluentTabs>
                     <FluentTab Label="HTTP API">
                         <FluentStack Orientation="Orientation.Vertical" VerticalGap="10" Style="padding-top:10px;">
-
-                            <FluentSelect Items="@AvailableApis"
-                                          OptionText="@(i => i?.ProfileName ?? "")"
-                                          OptionValue="@(i => i?.Id.ToString() ?? "")"
-                                          @bind-SelectedOption="SelectedApiOption"
-                                          Label="Select API Profile"
-                                          Style="width: 100%;"
-                                          Disabled="@(!IsTransmissionEnabled)" />
-
-                            <FluentButton Appearance="Appearance.Accent" OnClick="SaveConfiguration" Style="width: 100%;" Disabled="@(!IsTransmissionEnabled)">
-                                Save API Target
-                            </FluentButton>
+                            <FluentSelect Items="@AvailableApis" OptionText="@(i => i?.ProfileName ?? "")" OptionValue="@(i => i?.Id.ToString() ?? "")" @bind-SelectedOption="SelectedApiOption" Label="Select API Profile" Style="width: 100%;" />
                         </FluentStack>
                     </FluentTab>
-
                     <FluentTab Label="Database">
                         <FluentStack Orientation="Orientation.Vertical" VerticalGap="10" Style="padding-top:10px;">
-
-                            <FluentSelect Items="@AvailableDbs"
-                                          OptionText="@(d => d?.Name ?? "")"
-                                          OptionValue="@(d => d?.Id.ToString() ?? "")"
-                                          @bind-SelectedOption="SelectedDbOption"
-                                          Label="Select Connection"
-                                          Style="width: 100%;"
-                                          Disabled="@(!IsTransmissionEnabled)" />
-
-                            <FluentTextField @bind-Value="SelectedTable"
-                                             Label="Target Table Name"
-                                             Placeholder="e.g. SensorData"
-                                             Style="width: 100%;"
-                                             Disabled="@(!IsTransmissionEnabled)" />
-
-                            <FluentButton Appearance="Appearance.Accent" OnClick="SaveConfiguration" Style="width: 100%;" Disabled="@(!IsTransmissionEnabled)">
-                                Save DB Target
-                            </FluentButton>
+                            <FluentSelect Items="@AvailableDbs" OptionText="@(d => d?.Name ?? "")" OptionValue="@(d => d?.Id.ToString() ?? "")" @bind-SelectedOption="SelectedDbOption" Label="Select Connection" Style="width: 100%;" />
+                            <FluentTextField @bind-Value="SelectedTable" Label="Target Table Name" Placeholder="e.g. SensorData" Style="width: 100%;" />
                         </FluentStack>
                     </FluentTab>
                 </FluentTabs>
+                <div style="margin-top: 15px;">
+                    <FluentButton Appearance="Appearance.Accent" OnClick="@(async () => await SaveConfiguration(true))" Style="width: 100%;">Save Configuration</FluentButton>
+                </div>
             </FluentCard>
 
             <FluentCard>
                 <h3>@(IsEditing ? "Edit Node" : "Add New Node")</h3>
                 <FluentStack Orientation="Orientation.Vertical" VerticalGap="15">
                     <FluentTextField @bind-Value="NewNode.NodeName" Label="Node Name" Style="width: 100%;" />
-
                     <FluentSelect @bind-Value="SelectedType" Label="Data Type" TOption="string" Style="width: 100%;">
                         @foreach (var t in Enum.GetNames(typeof(DataTypeEnum)))
                         {
                             <FluentOption Value="@t">@t</FluentOption>
                         }
                     </FluentSelect>
-
                     @if (Nodes.Any(n => n.DataType == DataTypeEnum.Object))
                     {
-                        @if (Nodes.Any(n => n.DataType == DataTypeEnum.Object))
-                        {
-                            <FluentSelect @bind-Value="SelectedParentIdString"
-                                          Label="Parent Object (Optional)"
-                                          TOption="string"
-                                          Style="width: 100%; margin-bottom: 10px;">
-
-                                <FluentOption Value="">-- Root Level --</FluentOption>
-
-                                @foreach (var p in Nodes.Where(n => n.DataType == DataTypeEnum.Object && n.Id != NewNode.Id))
-                                {
-                                    <FluentOption Value="@p.Id.ToString()">@p.NodeName</FluentOption>
-                                }
-                            </FluentSelect>
-                        }
+                        <FluentSelect @bind-Value="SelectedParentIdString" Label="Parent Object" TOption="string" Style="width: 100%;">
+                            <FluentOption Value="">-- Root --</FluentOption>
+                            @foreach (var p in Nodes.Where(n => n.DataType == DataTypeEnum.Object && n.Id != NewNode.Id))
+                            {
+                                <FluentOption Value="@p.Id.ToString()">@p.NodeName</FluentOption>
+                            }
+                        </FluentSelect>
                     }
-
                     @if (SelectedType != "Object")
                     {
                         <FluentRadioGroup @bind-Value="SelectedMode" Label="Generation Mode" Orientation="Orientation.Horizontal">
@@ -116,51 +79,24 @@
                             }
                             @if (SelectedType == "String")
                             {
-                                <FluentRadio Value="@("SmartData")">Smart Data</FluentRadio>
+                                <FluentRadio Value="@("SmartData")">Smart</FluentRadio>
                             }
                         </FluentRadioGroup>
                     }
-
                     @if (SelectedMode == "FixedValue")
                     {
                         <FluentTextField @bind-Value="NewNode.FixedValue" Label="Value" Style="width: 100%;" />
                     }
-                    else if (SelectedMode == "SmartData")
-                    {
-                        <FluentSelect @bind-Value="NewNode.FixedValue" Label="Smart Category" TOption="string" Style="width: 100%;">
-                            <FluentOption Value="FullName">Full Name</FluentOption>
-                            <FluentOption Value="Email">Email Address</FluentOption>
-                            <FluentOption Value="Phone">Phone Number</FluentOption>
-                            <FluentOption Value="Address">Full Address</FluentOption>
-                            <FluentOption Value="Company">Company</FluentOption>
-                        </FluentSelect>
-                    }
                     else if (SelectedMode == "RandomPick")
                     {
-                        <label style="font-size: 0.9em; color: #ccc;">Values</label>
                         <FluentStack Orientation="Orientation.Horizontal">
-                            <FluentTextField @bind-Value="TempListItem"
-                                             Placeholder="Type value (e.g. 100)..."
-                                             Style="width: 100%;"
-                                             @onkeyup="@(e => { if (e.Key == "Enter") AddItemToList(); })" />
-
+                            <FluentTextField @bind-Value="TempListItem" Placeholder="Type value..." Style="width: 100%;" @onkeyup="@(e => { if (e.Key == "Enter") AddItemToList(); })" />
                             <FluentButton OnClick="AddItemToList" Appearance="Appearance.Accent" IconStart="@(new Icons.Regular.Size16.Add())" />
                         </FluentStack>
-
-                        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; border: 1px solid #333; padding: 10px; min-height: 50px; border-radius: 4px; background-color: #1a1a1a;">
-                            @if (CurrentList.Count == 0)
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; border: 1px solid #333; padding: 10px; min-height: 50px;">
+                            @foreach (var item in CurrentList)
                             {
-                                <span style="color: #666; font-style: italic; font-size: 0.85em;">List is empty. Add values above.</span>
-                            }
-                            else
-                            {
-                                @foreach (var item in CurrentList)
-                                {
-                                    <span style="background-color: #333; color: #fff; padding: 4px 10px; border-radius: 16px; font-size: 0.9em; display: inline-flex; align-items: center; border: 1px solid #444;">
-                                        @item
-                                        <span @onclick="() => RemoveItem(item)" style="cursor:pointer; color:#ff6b6b; margin-left:8px; font-weight:bold; font-size: 1.1em;" title="Remove">×</span>
-                                    </span>
-                                }
+                                <span style="background-color: #333; padding: 4px 10px; border-radius: 16px;">@item <span @onclick="() => RemoveItem(item)" style="cursor:pointer; color:#ff6b6b; margin-left:8px;">×</span></span>
                             }
                         </div>
                     }
@@ -171,7 +107,16 @@
                             <FluentNumberField @bind-Value="NewNode.MaxRange" Label="Max" Style="width: 100%;" />
                         </FluentStack>
                     }
-
+                    else if (SelectedMode == "SmartData")
+                    {
+                        <FluentSelect @bind-Value="NewNode.FixedValue" Label="Smart Category" TOption="string" Style="width: 100%;">
+                            <FluentOption Value="FullName">Full Name</FluentOption>
+                            <FluentOption Value="Email">Email</FluentOption>
+                            <FluentOption Value="Phone">Phone</FluentOption>
+                            <FluentOption Value="Address">Address</FluentOption>
+                            <FluentOption Value="Company">Company</FluentOption>
+                        </FluentSelect>
+                    }
                     <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="10">
                         <FluentButton Appearance="Appearance.Accent" OnClick="SaveNode" Style="flex-grow: 1;">@(IsEditing ? "Update" : "Add") Node</FluentButton>
                         @if (IsEditing)
@@ -185,47 +130,73 @@
     </div>
 
     <div class="panel-right">
-        <FluentCard Style="flex: 1; display: flex; flex-direction: column;">
-            <FluentStack Orientation="Orientation.Horizontal">
-                <h3>JSON Preview</h3>
+        <FluentCard Style="flex: 1; display: flex; flex-direction: column; min-height: 700px;">
+
+            <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" HorizontalGap="15">
+                <h3 style="margin: 0;">Live Monitor</h3>
                 <FluentSpacer />
-                <FluentNumberField @bind-Value="IntervalMs" Label="Interval" Style="width: 80px;" />
-                <FluentButton Appearance="@(IsGenerating? Appearance.Lightweight: Appearance.Accent)" OnClick="ToggleGeneration">
-                    @(IsGenerating ? "Stop" : "Start")
-                </FluentButton>
+
+                <FluentSwitch @bind-Value="IsApiEnabled" Label="API" />
+                <FluentSwitch @bind-Value="IsDbEnabled" Label="DB" />
+
+                <FluentDivider Orientation="Orientation.Vertical" Role="DividerRole.Presentation" Style="height: 20px;" />
+
+                <FluentButton Appearance="Appearance.Neutral" OnClick="GeneratePreview">Preview 1x</FluentButton>
+
+                @if (IsServiceRunning)
+                {
+                    <FluentButton Appearance="Appearance.Accent" Color="Color.Error" OnClick="ToggleService" IconStart="@(new Icons.Regular.Size16.Stop())">Stop Service</FluentButton>
+                }
+                else
+                {
+                    <FluentButton Appearance="Appearance.Accent" OnClick="ToggleService" IconStart="@(new Icons.Regular.Size16.Play())">Start Service</FluentButton>
+                }
             </FluentStack>
-            <textarea readonly class="json-viewer">@JsonOutput</textarea>
+
+            <FluentTabs Style="margin-top: 10px; flex-grow: 1;">
+
+                <FluentTab Label="Request (JSON)">
+                    <textarea readonly class="json-viewer" style="height: 600px; width: 100%;">@JsonOutput</textarea>
+                </FluentTab>
+
+                <FluentTab Label="API Response History">
+                    <div style="position: relative; height: 600px;">
+
+                        <div style="position: absolute; top: 10px; right: 20px; z-index: 10;">
+                            <FluentButton Appearance="Appearance.Stealth" OnClick="@(() => ApiResponseOutput = "")" IconStart="@(new Icons.Regular.Size16.Delete())">Clear History</FluentButton>
+                        </div>
+
+                        @if (string.IsNullOrEmpty(ApiResponseOutput))
+                        {
+                            <div style="color: #666; padding: 20px; font-style: italic; border: 1px solid #333; height: 100%;">
+                                Waiting for API responses... <br />
+                                (Enable 'API' switch and click 'Start Service')
+                            </div>
+                        }
+                        else
+                        {
+                            <textarea readonly class="json-viewer" style="color: #4ec9b0; height: 100%; width: 100%;">@ApiResponseOutput</textarea>
+                        }
+                    </div>
+                </FluentTab>
+
+            </FluentTabs>
         </FluentCard>
 
         <div class="panel-console" style="margin-top: 10px;">
-            <FluentCard Style="padding: 0; background: #1e1e1e; overflow: hidden;">
-
+            <FluentCard Style="padding: 0; background: #1e1e1e; overflow: hidden; height: 200px; display: flex; flex-direction: column;">
                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; border-bottom: 1px solid #333;">
-                    <h3 style="margin: 0; font-size: 14px;">API & DB Console</h3>
-
-                    <FluentButton Appearance="Appearance.Stealth"
-                                  OnClick="ClearLogs"
-                                  IconStart="@(new Icons.Regular.Size16.Delete())"
-                                  Title="Clear Console">
-                        Clear
-                    </FluentButton>
+                    <h3 style="margin: 0; font-size: 14px;">Log Console</h3>
+                    <FluentButton Appearance="Appearance.Stealth" OnClick="ClearLogs" IconStart="@(new Icons.Regular.Size16.Delete())">Clear</FluentButton>
                 </div>
-
                 <div class="console-output">
-                    @if (ConsoleLogs.Count == 0)
+                    @foreach (var log in ConsoleLogs)
                     {
-                        <div style="color: #555; font-style: italic;">Waiting for activity...</div>
-                    }
-                    else
-                    {
-                        // Show latest logs first
-                        @foreach (var log in ConsoleLogs.AsEnumerable().Reverse())
-                        {
-                            <div style="margin-bottom: 4px; border-bottom: 1px solid #222;">
-                                <span class="log-time">[@log.Timestamp]</span>
-                                <span>@log.Message</span>
-                            </div>
-                        }
+                        <div style="margin-bottom: 4px; border-bottom: 1px solid #222; padding: 4px 10px;">
+                            <span class="log-time">[@log.Time]</span>
+                            <span style="color: @(log.Status == "Success" ? "#4cc756" : log.Status == "Error" ? "#ff5555" : "#aaa"); font-weight: bold; margin-right: 8px;">@log.Status</span>
+                            <span style="color: #ddd;">@log.Message</span>
+                        </div>
                     }
                 </div>
             </FluentCard>
@@ -233,81 +204,55 @@
     </div>
 
     <div class="panel-bottom">
-    <FluentCard Style="padding: 0; background: #1e1e1e; height: 100%; display: flex; flex-direction: column; overflow: hidden;">
-        
-        <div style="padding: 10px 20px; border-bottom: 1px solid #333; flex-shrink: 0;">
-            <h3 style="margin: 0; font-size: 14px;">Schema Map (Node Configuration)</h3>
-        </div>
-
-        <div class="table-scroll">
-            <table style="width: 100%; border-collapse: collapse; color: #ddd;">
-                <thead>
-                    <tr style="background: #252525; text-align: left; font-size: 12px;">
-                        <th style="padding: 10px 20px;">Node Name</th>
-                        <th>Type</th>
-                        <th>Mode</th>
-                        <th>Detail</th>
-                        <th style="text-align: right; padding-right: 20px;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var node in Nodes)
-                    {
-                        <tr style="border-bottom: 1px solid #333;">
-                            <td style="padding: 10px 20px; color: #5db0f5;">
-                                @{
-                                    // Depth Calculation
-                                    int depth = 0;
-                                    var current = node;
-                                    while (current.ParentId != null)
-                                    {
-                                        depth++;
-                                        current = Nodes.FirstOrDefault(n => n.Id == current.ParentId);
-                                        if (current == null || depth > 10) break;
+        <FluentCard Style="padding: 0; background: #1e1e1e; height: 100%; display: flex; flex-direction: column; overflow: hidden;">
+            <div style="padding: 10px 20px; border-bottom: 1px solid #333; flex-shrink: 0;">
+                <h3 style="margin: 0; font-size: 14px;">Schema Map</h3>
+            </div>
+            <div class="table-scroll">
+                <table style="width: 100%; border-collapse: collapse; color: #ddd;">
+                    <thead><tr style="background: #252525; text-align: left; font-size: 12px;"><th style="padding: 10px 20px;">Node Name</th><th>Type</th><th>Mode</th><th>Detail</th><th style="text-align: right; padding-right: 20px;">Actions</th></tr></thead>
+                    <tbody>
+                        @foreach (var node in Nodes)
+                        {
+                            <tr style="border-bottom: 1px solid #333;">
+                                <td style="padding: 10px 20px; color: #5db0f5;">
+                                    @{
+                                        int depth = 0; var current = node; while (current.ParentId != null) { depth++; current = Nodes.FirstOrDefault(n => n.Id == current.ParentId); if (current == null || depth > 10) break; }
                                     }
-                                }
-
-                                <span style="display: inline-block; width: @(depth * 20)px;"></span>
-
-                                @if (depth > 0)
-                                {
-                                    <span style="color: #666; margin-right: 5px;">└──</span>
-                                }
-
-                                @node.NodeName
-
-                                @if (node.DataType == DataTypeEnum.Object)
-                                {
-                                    <span style="font-size:0.8em; color:#aaa; margin-left:5px;">(Container)</span>
-                                }
-                            </td>
-                            <td><FluentBadge>@node.DataType</FluentBadge></td>
-                            <td>@node.Mode</td>
-                            <td style="color: #888;">
-                                @(node.Mode == GenerationMode.SmartData ? $"Faker: {node.FixedValue}" : node.FixedValue ?? (node.Mode == GenerationMode.Range ? $"{node.MinRange}-{node.MaxRange}" : ""))
-                            </td>
-                            <td style="text-align: right; padding-right: 15px;">
-                                <FluentButton OnClick="@(() => EditNode(node))" IconStart="@(new Icons.Regular.Size16.Edit())" />
-                                <FluentButton OnClick="@(() => DeleteNode(node))" IconStart="@(new Icons.Regular.Size16.Delete())" Color="Color.Error" />
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </FluentCard>
-</div>
+                                    <span style="display: inline-block; width: @(depth * 20)px;"></span>
+                                    @if (depth > 0)
+                                    {
+                                        <span style="color: #666; margin-right: 5px;">└──</span>
+                                    }
+                                    @node.NodeName
+                                    @if (node.DataType == DataTypeEnum.Object)
+                                    {
+                                        <span style="font-size:0.8em; color:#aaa; margin-left:5px;">(Container)</span>
+                                    }
+                                </td>
+                                <td><FluentBadge>@node.DataType</FluentBadge></td>
+                                <td>@node.Mode</td>
+                                <td style="color: #888;">@node.FixedValue</td>
+                                <td style="text-align: right; padding-right: 15px;">
+                                    <FluentButton OnClick="@(() => EditNode(node))" IconStart="@(new Icons.Regular.Size16.Edit())" />
+                                    <FluentButton OnClick="@(() => DeleteNode(node))" IconStart="@(new Icons.Regular.Size16.Delete())" Color="Color.Error" />
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </FluentCard>
+    </div>
 </div>
 
 <style>
     .generator-layout {
         display: grid;
         grid-template-columns: 350px 1fr;
-        /* Use 'auto' for the top row so it grows with the content */
         grid-template-rows: auto 1fr;
         grid-template-areas: "left right" "bottom bottom";
         gap: 20px;
-        /* Change height to min-height to prevent clipping */
         min-height: calc(100vh - 150px);
         padding-bottom: 20px;
     }
@@ -317,15 +262,8 @@
         display: flex;
         flex-direction: column;
         gap: 20px;
-        /* Allow this specific panel to stay within the viewport if desired */
         max-height: calc(100vh - 170px);
         overflow-y: auto;
-        padding-right: 5px; /* Space for scrollbar */
-    }
-
-    .panel-left .fluent-card {
-        height: auto !important;
-        min-height: min-content;
     }
 
     .panel-right {
@@ -335,119 +273,46 @@
         gap: 20px;
     }
 
-    /* 1. Constrain the bottom panel height */
     .panel-bottom {
         grid-area: bottom;
-        height: 300px; /* Fixed height so it doesn't grow */
+        height: 300px;
         min-height: 300px;
         display: flex;
         flex-direction: column;
         margin-top: 10px;
     }
 
-    /* 2. Scroll wrapper for the table */
     .table-scroll {
-        flex: 1; /* Take all available space in the card */
-        overflow-y: auto; /* Enable scrolling */
+        flex: 1;
+        overflow-y: auto;
         background: #1e1e1e;
         border-top: 1px solid #333;
     }
 
-    /* 3. Sticky Header - Keeps column names visible */
-    thead th {
-        position: sticky;
-        top: 0;
-        background: #252525;
-        z-index: 10;
-        box-shadow: 0 1px 0 #333;
-    }
-
     .json-viewer {
-        flex-grow: 1;
+        width: 100%;
+        display: block;
         background-color: #121212;
         color: #00ff00;
         font-family: 'Consolas', monospace;
-        border: 1px solid #333;
+        border: none;
         padding: 10px;
         resize: none;
-        border: none;
         outline: none;
     }
 
-    /* Console Log Area */
     .console-output {
-        height: 200px; /* Fixed height */
-        overflow-y: auto; /* Enable scrolling */
+        height: 200px;
+        overflow-y: auto;
         background-color: #0d0d0d;
-        padding: 10px;
-        font-family: 'Consolas', 'Monaco', monospace;
+        font-family: 'Consolas', monospace;
         font-size: 12px;
-        color: #00ff00; /* Hacker green text */
-        border-top: 1px solid #333;
+        color: #00ff00;
     }
 
-    /* Optional: Style for the timestamp in the log */
     .log-time {
         color: #888;
         margin-right: 10px;
-    }
-
-    .console-window {
-        font-family: 'Consolas', monospace;
-        font-size: 12px;
-        /* FIX: Ensure it fills the panel but scrolls internally */
-        flex-grow: 1;
-        overflow-y: auto;
-        height: 100%;
-        display: flex;
-        flex-direction: column-reverse; /* Auto scroll to bottom */
-    }
-
-    .console-line {
-        border-bottom: 1px solid #222;
-        padding: 2px 0;
-    }
-
-    .console-time {
-        color: #666;
-        margin-right: 5px;
-    }
-
-    .console-success {
-        color: #4ec9b0;
-        font-weight: bold;
-    }
-
-    .console-error {
-        color: #f14c4c;
-        font-weight: bold;
-    }
-
-    .console-msg {
-        color: #ddd;
-    }
-
-    .chip-container {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 5px;
-        margin-top: 5px;
-        min-height: 30px;
-        border: 1px dashed #444;
-        padding: 5px;
-    }
-
-    .chip {
-        background-color: #333;
-        padding: 2px 8px;
-        border-radius: 12px;
-        font-size: 0.9em;
-    }
-
-    .chip-remove {
-        color: #ff5555;
-        cursor: pointer;
-        margin-left: 5px;
     }
 </style>
 
@@ -455,355 +320,121 @@
     [Parameter] public int GenId { get; set; }
     private string CurrentGenName = "Loading...";
 
-    // --- API MAPPING STATE ---
+    // Config
     private List<ApiConfig> AvailableApis = new();
     private ApiConfig? ConnectedApi;
     private ApiConfig? SelectedApiOption;
-
-    // DB State
     private List<DbConnectionConfig> AvailableDbs = new();
     private DbConnectionConfig? SelectedDbOption;
-    private List<string> TableList = new();
     private string SelectedTable = "";
-    private bool IsLoadingTables = false;
+    private int IntervalMs = 1000;
+    private bool IsApiEnabled = false;
+    private bool IsDbEnabled = false;
 
-    // --- CONSOLE STATE ---
-    private class LogEntry
-    {
-        public DateTime Timestamp { get; set; } = DateTime.Now;
-        public string Time { get; set; } = string.Empty;
-        public bool Success { get; set; }
-        public string Status { get; set; } = string.Empty;
-        public string Message { get; set; } = string.Empty;
-    }
-
-    private List<LogEntry> ConsoleLogs = new();
-
-    // --- NODE STATE ---
+    // Nodes
     private List<NodeConfig> Nodes = new();
     private NodeConfig NewNode { get; set; } = new();
     private bool IsEditing = false;
-
-    // Helpers for Enums
-    private string SelectedType
-    {
-        get => NewNode.DataType.ToString();
-        set
-        {
-            NewNode.DataType = Enum.Parse<DataTypeEnum>(value);
-            if (NewNode.DataType == DataTypeEnum.String && SelectedMode == "Range")
-                SelectedMode = "FixedValue";
-        }
-    }
-
-    private string SelectedMode
-    {
-        get => NewNode.Mode.ToString();
-        set => NewNode.Mode = Enum.Parse<GenerationMode>(value);
-    }
-
     private string TempListItem { get; set; } = "";
     private List<string> CurrentList = new();
+
+    // Data State
     private string JsonOutput = "{}";
+    private string ApiResponseOutput = ""; // Stores History
+    private bool IsServiceRunning = false;
+    private List<LogEntry> ConsoleLogs = new();
+    private System.Threading.Timer? _statusTimer;
 
-    // --- GENERATION STATE ---
-    private int IntervalMs = 1000;
-    private bool IsGenerating = false;
-    private bool IsTransmissionEnabled = true;
-    private CancellationTokenSource? _cts;
-
-    // --- PARENT ID HELPER ---
-    private string SelectedParentIdString
-    {
-        get => NewNode.ParentId?.ToString() ?? "";
-        set
-        {
-            if (string.IsNullOrEmpty(value))
-                NewNode.ParentId = null;
-            else
-                NewNode.ParentId = int.Parse(value);
-        }
-    }
+    // Enums
+    private string SelectedType { get => NewNode.DataType.ToString(); set => NewNode.DataType = Enum.Parse<DataTypeEnum>(value); }
+    private string SelectedMode { get => NewNode.Mode.ToString(); set => NewNode.Mode = Enum.Parse<GenerationMode>(value); }
+    private string SelectedParentIdString { get => NewNode.ParentId?.ToString() ?? ""; set { NewNode.ParentId = string.IsNullOrEmpty(value) ? null : int.Parse(value); } }
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadApis();
-        await LoadDbs();
-        await LoadGeneratorInfo();
-        await LoadNodes();
+        await LoadApis(); await LoadDbs(); await LoadGeneratorInfo(); await LoadNodes();
+        IsServiceRunning = GenManager.IsRunning(GenId);
+
+        GenManager.OnGenerated += OnLiveJsonReceived;
+        GenManager.OnApiResponse += OnLiveApiReceived;
+        LogService.OnLogAdded += OnLogReceived;
+
+        _statusTimer = new System.Threading.Timer(_ => { bool running = GenManager.IsRunning(GenId); if (running != IsServiceRunning) { IsServiceRunning = running; InvokeAsync(StateHasChanged); } }, null, 1000, 2000);
     }
 
-    // --- DATA LOADING METHODS ---
-    private async Task LoadApis()
+    private void OnLiveJsonReceived(int id, string json) { if (id == GenId) InvokeAsync(() => { JsonOutput = json; StateHasChanged(); }); }
+
+    // FIXED: Appends data instead of overwriting
+    private void OnLiveApiReceived(int id, string response)
     {
-        using var context = DbFactory.CreateDbContext();
-        AvailableApis = await context.ApiConfigs.AsNoTracking().ToListAsync();
+        if (id == GenId) InvokeAsync(() =>
+        {
+            ApiResponseOutput += $"\n--- Response @ {DateTime.Now:HH:mm:ss} ---\n{response}\n";
+            StateHasChanged();
+        });
     }
 
-    private async Task LoadDbs()
+    private void OnLogReceived() { InvokeAsync(() => { ConsoleLogs = LogService.GetLogs().Where(l => l.GeneratorName == CurrentGenName).Take(50).ToList(); StateHasChanged(); }); }
+    private void ClearLogs() { ConsoleLogs.Clear(); StateHasChanged(); }
+    private void GeneratePreview() { JsonOutput = GenService.GeneratePayload(Nodes); }
+
+    private async Task ToggleService()
     {
-        using var context = DbFactory.CreateDbContext();
-        AvailableDbs = await context.DbConfigs.AsNoTracking().ToListAsync();
+        if (IsServiceRunning) GenManager.StopGeneration(GenId);
+        else { await SaveConfiguration(false); GenManager.StartGeneration(GenId); }
+        IsServiceRunning = !IsServiceRunning;
     }
 
-    private async Task LoadNodes()
-    {
-        using var context = DbFactory.CreateDbContext();
-        Nodes = await context.NodeConfigs.Where(x => x.GeneratorId == GenId).AsNoTracking().OrderBy(x => x.Id).ToListAsync();
-    }
-
+    // Loaders
+    private async Task LoadApis() { using var c = DbFactory.CreateDbContext(); AvailableApis = await c.ApiConfigs.AsNoTracking().ToListAsync(); }
+    private async Task LoadDbs() { using var c = DbFactory.CreateDbContext(); AvailableDbs = await c.DbConfigs.AsNoTracking().ToListAsync(); }
+    private async Task LoadNodes() { using var c = DbFactory.CreateDbContext(); Nodes = await c.NodeConfigs.Where(x => x.GeneratorId == GenId).AsNoTracking().OrderBy(x => x.Id).ToListAsync(); }
     private async Task LoadGeneratorInfo()
     {
         using var context = DbFactory.CreateDbContext();
-        var gen = await context.Generators
-            .Include(g => g.ApiConfig)
-            .Include(g => g.DbConnectionConfig)
-            .FirstOrDefaultAsync(g => g.Id == GenId);
-
+        var gen = await context.Generators.Include(g => g.ApiConfig).Include(g => g.DbConnectionConfig).FirstOrDefaultAsync(g => g.Id == GenId);
         if (gen != null)
         {
-            CurrentGenName = gen.Name;
-
-            // Restore API
+            CurrentGenName = gen.Name; IntervalMs = gen.IntervalMs == 0 ? 1000 : gen.IntervalMs;
+            IsApiEnabled = gen.IsApiEnabled; IsDbEnabled = gen.IsDbEnabled;
             ConnectedApi = gen.ApiConfig;
-            if (ConnectedApi != null)
-                SelectedApiOption = AvailableApis.FirstOrDefault(a => a.Id == ConnectedApi.Id);
-
-            // Restore DB
-            if (gen.DbConnectionConfig != null)
-            {
-                SelectedDbOption = AvailableDbs.FirstOrDefault(d => d.Id == gen.DbConnectionConfig.Id);
-                SelectedTable = gen.TableName ?? "";
-                if (SelectedDbOption != null)
-                {
-                    TableList = await DbInserter.GetTablesAsync(SelectedDbOption.ConnectionString);
-                }
-            }
+            if (ConnectedApi != null) SelectedApiOption = AvailableApis.FirstOrDefault(a => a.Id == ConnectedApi.Id);
+            if (gen.DbConnectionConfig != null) { SelectedDbOption = AvailableDbs.FirstOrDefault(d => d.Id == gen.DbConnectionConfig.Id); SelectedTable = gen.TableName ?? ""; }
         }
     }
-
-    private async Task OnDbChanged(DbConnectionConfig? db)
-    {
-        SelectedDbOption = db;
-        TableList.Clear();
-        SelectedTable = "";
-
-        if (db != null)
-        {
-            IsLoadingTables = true;
-            TableList = await DbInserter.GetTablesAsync(db.ConnectionString);
-            IsLoadingTables = false;
-        }
-    }
-
-    // --- ACTIONS ---
-    private void ClearLogs()
-    {
-        ConsoleLogs.Clear();
-        StateHasChanged();
-    }
-
-    private async Task SaveConfiguration()
+    private async Task SaveConfiguration(bool showMessage = true)
     {
         using var context = DbFactory.CreateDbContext();
         var gen = await context.Generators.FindAsync(GenId);
-
         if (gen != null)
         {
-            gen.ApiConfigId = SelectedApiOption?.Id;
-            ConnectedApi = SelectedApiOption;
-
-            gen.DbConnectionConfigId = SelectedDbOption?.Id;
-            gen.TableName = SelectedTable;
-
+            gen.IntervalMs = IntervalMs; gen.IsApiEnabled = IsApiEnabled; gen.IsDbEnabled = IsDbEnabled;
+            gen.ApiConfigId = SelectedApiOption?.Id; gen.DbConnectionConfigId = SelectedDbOption?.Id; gen.TableName = SelectedTable;
             await context.SaveChangesAsync();
-            ToastService.ShowSuccess("Target configuration saved.");
+            if (showMessage) ToastService.ShowSuccess("Saved.");
         }
     }
 
-    // --- NODE MANAGEMENT ---
-    private void AddItemToList()
-    {
-        if (!string.IsNullOrWhiteSpace(TempListItem))
-        {
-            CurrentList.Add(TempListItem);
-            TempListItem = "";
-            StateHasChanged();
-        }
-    }
-
-    private void RemoveItem(string item)
-    {
-        CurrentList.Remove(item);
-        StateHasChanged();
-    }
-
+    // Node Logic
+    private void AddItemToList() { if (!string.IsNullOrWhiteSpace(TempListItem)) { CurrentList.Add(TempListItem); TempListItem = ""; } }
+    private void RemoveItem(string item) { CurrentList.Remove(item); }
+    private void CancelEdit() { IsEditing = false; NewNode = new NodeConfig(); CurrentList.Clear(); }
     private async Task SaveNode()
     {
         NewNode.GeneratorId = GenId;
-
-        // Convert list to string for RandomPick mode
-        if (NewNode.Mode == GenerationMode.RandomPick)
-        {
-            if (CurrentList.Any())
-                NewNode.ValueList = string.Join(",", CurrentList);
-            else
-            {
-                ToastService.ShowWarning("Please add values to the list.");
-                return;
-            }
-        }
-
+        if (NewNode.Mode == GenerationMode.RandomPick) NewNode.ValueList = string.Join(",", CurrentList);
         using var context = DbFactory.CreateDbContext();
-
-        // Prevent self-parenting
-        if (NewNode.ParentId.HasValue && NewNode.ParentId == NewNode.Id)
-        {
-            ToastService.ShowError("A node cannot be its own parent.");
-            return;
-        }
-
-        if (NewNode.Id == 0)
-            context.NodeConfigs.Add(NewNode);
-        else
-            context.NodeConfigs.Update(NewNode);
-
-        await context.SaveChangesAsync();
-
-        // Reset UI
-        NewNode = new NodeConfig();
-        CurrentList.Clear();
-        IsEditing = false;
-        await LoadNodes();
+        if (NewNode.Id == 0) context.NodeConfigs.Add(NewNode); else context.NodeConfigs.Update(NewNode);
+        await context.SaveChangesAsync(); NewNode = new NodeConfig(); CurrentList.Clear(); IsEditing = false; await LoadNodes();
     }
+    private void EditNode(NodeConfig node) { IsEditing = true; NewNode = new NodeConfig { Id = node.Id, NodeName = node.NodeName, DataType = node.DataType, Mode = node.Mode, FixedValue = node.FixedValue, MinRange = node.MinRange, MaxRange = node.MaxRange, ValueList = node.ValueList, ParentId = node.ParentId }; CurrentList.Clear(); if (NewNode.Mode == GenerationMode.RandomPick && !string.IsNullOrEmpty(NewNode.ValueList)) CurrentList.AddRange(NewNode.ValueList.Split(',')); }
+    private async Task DeleteNode(NodeConfig node) { using var c = DbFactory.CreateDbContext(); c.NodeConfigs.Remove(node); await c.SaveChangesAsync(); await LoadNodes(); }
 
-    private void EditNode(NodeConfig node)
+    public void Dispose()
     {
-        IsEditing = true;
-        NewNode = new NodeConfig
-        {
-            Id = node.Id,
-            NodeName = node.NodeName,
-            DataType = node.DataType,
-            Mode = node.Mode,
-            FixedValue = node.FixedValue,
-            MinRange = node.MinRange,
-            MaxRange = node.MaxRange,
-            ValueList = node.ValueList,
-            ParentId = node.ParentId
-        };
-
-        CurrentList.Clear();
-        if (NewNode.Mode == GenerationMode.RandomPick && !string.IsNullOrEmpty(NewNode.ValueList))
-        {
-            CurrentList.AddRange(NewNode.ValueList.Split(',', StringSplitOptions.RemoveEmptyEntries));
-        }
+        _statusTimer?.Dispose();
+        GenManager.OnGenerated -= OnLiveJsonReceived;
+        GenManager.OnApiResponse -= OnLiveApiReceived;
+        LogService.OnLogAdded -= OnLogReceived;
     }
-
-    private void CancelEdit() { IsEditing = false; NewNode = new NodeConfig(); CurrentList.Clear(); SelectedMode = "FixedValue"; }
-
-    private async Task DeleteNode(NodeConfig node)
-    {
-        using var context = DbFactory.CreateDbContext();
-        context.NodeConfigs.Remove(node);
-        await context.SaveChangesAsync();
-        await LoadNodes();
-    }
-
-    // --- MAIN GENERATION LOOP (FIXED) ---
-    private async Task ToggleGeneration()
-    {
-        IsGenerating = !IsGenerating;
-
-        if (!IsGenerating)
-        {
-            _cts?.Cancel();
-            return;
-        }
-
-        _cts = new CancellationTokenSource();
-        var token = _cts.Token;
-
-        while (IsGenerating && !token.IsCancellationRequested)
-        {
-            try
-            {
-                // 1. Generate JSON
-                var json = GenService.GeneratePayload(Nodes);
-                JsonOutput = json;
-
-                // --- DETERMINING THE TARGET ---
-                // FIX: Use the Dropdown selection (SelectedApiOption) if available.
-                // This ensures it works immediately without needing to click "Save" first.
-                var activeApi = SelectedApiOption ?? ConnectedApi;
-
-                // 2. SEND TO API
-                if (IsTransmissionEnabled)
-                {
-                    if (activeApi != null)
-                    {
-                        string result = await HttpSender.SendPayloadAsync(activeApi, json);
-                        bool isSuccess = result.Contains("SUCCESS");
-
-                        ConsoleLogs.Add(new LogEntry
-                        {
-                            Timestamp = DateTime.Now,
-                            Time = DateTime.Now.ToString("HH:mm:ss"),
-                            Success = isSuccess,
-                            Status = isSuccess ? "200 OK" : "ERROR",
-                            Message = result
-                        });
-                    }
-                    else
-                    {
-                        // FIX: Log a warning instead of staying silent
-                        ConsoleLogs.Add(new LogEntry
-                        {
-                            Timestamp = DateTime.Now,
-                            Time = DateTime.Now.ToString("HH:mm:ss"),
-                            Success = false,
-                            Status = "MISSING",
-                            Message = "No API Profile selected! Please select one in the dropdown."
-                        });
-                    }
-                }
-
-                // 3. INSERT INTO DB
-                if (SelectedDbOption != null && !string.IsNullOrEmpty(SelectedTable) && IsTransmissionEnabled)
-                {
-                    await DbInserter.InsertPayloadAsync(SelectedDbOption.ConnectionString, SelectedTable, json);
-
-                    ConsoleLogs.Add(new LogEntry
-                    {
-                        Timestamp = DateTime.Now,
-                        Time = DateTime.Now.ToString("HH:mm:ss"),
-                        Success = true,
-                        Status = "INSERTED",
-                        Message = $"DB: Inserted into {SelectedTable}"
-                    });
-                }
-
-                // Cleanup logs
-                if (ConsoleLogs.Count > 100) ConsoleLogs.RemoveAt(0);
-
-                StateHasChanged();
-            }
-            catch (Exception ex)
-            {
-                ConsoleLogs.Add(new LogEntry
-                {
-                    Timestamp = DateTime.Now,
-                    Time = DateTime.Now.ToString("HH:mm:ss"),
-                    Success = false,
-                    Status = "EXCEPTION",
-                    Message = ex.Message
-                });
-                StateHasChanged();
-            }
-
-            try { await Task.Delay(IntervalMs, token); } catch { }
-        }
-    }
-
-    public void Dispose() { _cts?.Cancel(); _cts?.Dispose(); }
 }

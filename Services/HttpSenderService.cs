@@ -12,31 +12,29 @@ namespace DataGen_v1.Services
             _httpClientFactory = httpClientFactory;
         }
 
-        public async Task<string> SendPayloadAsync(ApiConfig api, string jsonPayload)
+        // UPDATED: Returns a Tuple (Success, StatusCode, Body)
+        public async Task<(bool Success, int StatusCode, string Body)> SendPayloadAsync(ApiConfig api, string jsonPayload)
         {
             try
             {
-                using var client = new HttpClient();
-                var content = new StringContent(jsonPayload, System.Text.Encoding.UTF8, "application/json");
+                using var client = _httpClientFactory.CreateClient(); // Use Factory for performance
+                var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
 
-                // Add headers if you have them
-                // client.DefaultRequestHeaders.Add("Authorization", api.AuthKey);
+                // Add headers if exists
+                if (!string.IsNullOrEmpty(api.HeaderName) && !string.IsNullOrEmpty(api.HeaderValue))
+                {
+                    client.DefaultRequestHeaders.TryAddWithoutValidation(api.HeaderName, api.HeaderValue);
+                }
 
                 var response = await client.PostAsync(api.TargetUrl, content);
                 var responseBody = await response.Content.ReadAsStringAsync();
 
-                if (response.IsSuccessStatusCode)
-                {
-                    return $"SUCCESS {(int)response.StatusCode}: {responseBody}";
-                }
-                else
-                {
-                    return $"FAILED {(int)response.StatusCode}: {responseBody}";
-                }
+                // Return raw data separately
+                return (response.IsSuccessStatusCode, (int)response.StatusCode, responseBody);
             }
             catch (Exception ex)
             {
-                return $"ERROR: {ex.Message}";
+                return (false, 0, $"EXCEPTION: {ex.Message}");
             }
         }
     }

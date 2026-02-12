@@ -1,0 +1,88 @@
+﻿@page "/logs"
+@using DataGen_v1.Services
+@inject SystemLogService LogService
+@implements IDisposable
+
+@rendermode InteractiveServer
+
+<PageTitle>Live System Logs</PageTitle>
+
+<div style="height: 100vh; display: flex; flex-direction: column; padding: 20px;">
+
+    <div style="flex-shrink: 0; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+        <h2>Live System Logs</h2>
+        <FluentStack>
+            <FluentBadge Appearance="Appearance.Neutral">@Logs.Count / 1000 retained</FluentBadge>
+            <FluentButton Appearance="Appearance.Stealth" OnClick="Clear" IconStart="@(new Icons.Regular.Size20.Delete())">Clear</FluentButton>
+        </FluentStack>
+    </div>
+
+    <FluentCard Style="flex-grow: 1; overflow-y: auto; background-color: #1e1e1e; padding: 0; border: 1px solid #333;">
+        <table style="width: 100%; border-collapse: collapse; font-family: 'Consolas', monospace; font-size: 13px;">
+            <thead style="position: sticky; top: 0; background-color: #252525; z-index: 10;">
+                <tr style="text-align: left; color: #ccc;">
+                    <th style="padding: 8px;">Time</th>
+                    <th style="padding: 8px;">Generator</th>
+                    <th style="padding: 8px;">Target</th>
+                    <th style="padding: 8px;">Status</th>
+                    <th style="padding: 8px;">Message</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var log in Logs)
+                {
+                    <tr style="border-bottom: 1px solid #333;">
+                        <td style="padding: 6px 8px; color: #666;">@log.Time</td>
+                        <td style="padding: 6px 8px; color: #fff;">@log.GeneratorName</td>
+                        <td style="padding: 6px 8px; color: #aaa;">@log.Target</td>
+                        <td style="padding: 6px 8px;">
+                            @if (log.Status == "Success")
+                            {
+                                <span style="color: #4cc756;">✔ OK</span>
+                            }
+                            else
+                            {
+                                <span style="color: #ff5555;">✖ @log.Status</span>
+                            }
+                        </td>
+                        <td style="padding: 6px 8px; color: #ddd;">@log.Message</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </FluentCard>
+</div>
+
+@code {
+    private List<LogEntry> Logs = new();
+
+    protected override void OnInitialized()
+    {
+        // 1. Load initial logs
+        Logs = LogService.GetLogs();
+
+        // 2. Subscribe to new logs
+        LogService.OnLogAdded += HandleLogUpdate;
+    }
+
+    private void HandleLogUpdate()
+    {
+        // Must run on UI thread
+        InvokeAsync(() =>
+        {
+            Logs = LogService.GetLogs();
+            StateHasChanged();
+        });
+    }
+
+    private void Clear()
+    {
+        LogService.Clear();
+    }
+
+    public void Dispose()
+    {
+        // Unsubscribe to prevent memory leaks
+        LogService.OnLogAdded -= HandleLogUpdate;
+    }
+}

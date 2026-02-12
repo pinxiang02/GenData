@@ -26,6 +26,9 @@ builder.Services.AddScoped<HttpSenderService>();
 
 builder.Services.AddScoped<DbInsertService>();
 
+builder.Services.AddSingleton<GenerationManager>();
+builder.Services.AddSingleton<SystemLogService>();
+
 // 4. Add Database Context (The part causing your error)
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
