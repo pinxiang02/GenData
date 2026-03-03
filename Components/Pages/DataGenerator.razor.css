@@ -1,0 +1,67 @@
+﻿.generator-layout {
+    display: grid;
+    grid-template-columns: 350px 1fr;
+    grid-template-rows: auto 1fr;
+    grid-template-areas: "left right" "bottom bottom";
+    gap: 20px;
+    min-height: calc(100vh - 150px);
+    padding-bottom: 20px;
+}
+
+.panel-left {
+    grid-area: left;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    max-height: calc(100vh - 170px);
+    overflow-y: auto;
+}
+
+.panel-right {
+    grid-area: right;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.panel-bottom {
+    grid-area: bottom;
+    height: 300px;
+    min-height: 300px;
+    display: flex;
+    flex-direction: column;
+    margin-top: 10px;
+}
+
+.table-scroll {
+    flex: 1;
+    overflow-y: auto;
+    background: #1e1e1e;
+    border-top: 1px solid #333;
+}
+
+.json-viewer {
+    width: 100%;
+    display: block;
+    background-color: #121212;
+    color: #00ff00;
+    font-family: Consolas, monospace;
+    border: none;
+    padding: 10px;
+    resize: none;
+    outline: none;
+}
+
+.console-output {
+    height: 200px;
+    overflow-y: auto;
+    background-color: #0d0d0d;
+    font-family: Consolas, monospace;
+    font-size: 12px;
+    color: #00ff00;
+}
+
+.log-time {
+    color: #888;
+    margin-right: 10px;
+}
